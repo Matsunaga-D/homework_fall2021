@@ -81,14 +81,8 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
             observation = obs[None]
         # ==================== Own Code ====================
         # TODO return the action that the policy prescribes
-        if self.discrete:
-            logits = self.logits_na(observation)
-            action = distributions.Categorical(logits=logits).sample()
-        else:
-            mean = self.mean_net(torch.Tensor(observation))
-            std = torch.exp(self.logstd)
-            cov = torch.diag(std)
-            action = distributions.MultivariateNormal(mean, cov).rsample()
+        distr = self(observation)
+        action = distr.rsample()
         return action
         #raise NotImplementedError
         #==================== Own Code ====================
@@ -103,7 +97,16 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
     # return more flexible objects, such as a
     # `torch.distributions.Distribution` object. It's up to you!
     def forward(self, observation: torch.FloatTensor) -> Any:
-        raise NotImplementedError
+        # raise NotImplementedError
+        if self.discrete:
+            logits = self.logits_na(observation)
+            return distributions.Categorical(logits=logits)
+        else:
+            mean = self.mean_net(torch.Tensor(observation))
+            std = torch.exp(self.logstd)
+            cov = torch.diag(std)
+            return distributions.MultivariateNormal(mean, cov)
+            # action = distributions.Normal(mean, std).rsample()
 
 
 #####################################################
@@ -123,7 +126,7 @@ class MLPPolicySL(MLPPolicy):
         assert observations.shape[0] == actions.shape[0]
         self.optimizer.zero_grad()
         pred = self.get_action(observations)
-        loss = self.loss(pred, torch.tensor(actions, requires_grad=False))
+        loss = self.loss(pred, torch.tensor(actions))
         loss.backward()
         self.optimizer.step()
         # ==================== Own Code ====================
